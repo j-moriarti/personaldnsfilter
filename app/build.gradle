@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 28
-    buildToolsVersion "27.0.3"
+//    buildToolsVersion "27.0.3"
 
     defaultConfig {
         applicationId "dnsfilter.android"
@@ -17,3 +17,8 @@ android {
         }
     }
 }
+
+dependencies {
+    implementation 'org.fusesource.jansi:jansi:1.18'
+}
+

@@ -54,7 +54,7 @@ public class DNSCommunicator {
 				curDNS = -1;
 			}
 			if (ExecutionEnvironment.getEnvironment().debug())
-				Logger.getLogger().logLine("Using updated DNS Servers!");
+				Logger.getLogger().logLine("Using updated DNS Servers!" + "     ");
 		}
 	}
 
@@ -74,7 +74,7 @@ public class DNSCommunicator {
 		if (current == getCurrentDNS()) {  //might have been switched by other thread already
 			curDNS = (curDNS + 1) % dnsServers.length;
 			if (ExecutionEnvironment.getEnvironment().debug())
-				Logger.getLogger().logLine("Switched DNS Server to:" + getCurrentDNS().getAddress().getHostAddress());
+				Logger.getLogger().logLine("Switched DNS Server to:" + getCurrentDNS().getAddress().getHostAddress() + "     ");
 		}
 	}
 
