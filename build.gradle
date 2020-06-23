@@ -30,6 +30,7 @@ version 'DNSFilter-1.50.40.0-mr2'
 sourceCompatibility = 1.8
 dependencies {
     implementation 'org.fusesource.jansi:jansi:1.18'
+    implementation 'org.brotli:dec:0.1.2'
 }
 
 repositories {
