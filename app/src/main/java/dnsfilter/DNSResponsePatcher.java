@@ -45,6 +45,8 @@ public class DNSResponsePatcher {
 	private static boolean checkIP = false;
 	private static boolean checkCNAME = true;
 	private static boolean filter = false;
+	private static final Set<String> OldAllowed = new HashSet<String>();
+    	private static final Set<String> OldFiltered = new HashSet<String>();
 
 
 	static {
@@ -187,16 +189,34 @@ public class DNSResponsePatcher {
 
 	private static boolean filter(String host) {
 		boolean result;
+		boolean repeated = true;
 
-		if (FILTER == null)
+		if (FILTER == null) {
 			result = false;
-		else
-			result = FILTER.contains(host);
+			if (!OldAllowed.contains(host))
+				repeated = false;
+		}
+		else {
+			if (OldAllowed.contains(host)) {
+				result = false;
+			}else if (OldFiltered.contains(host)) {
+				result = true;
+			}else {
+				result = FILTER.contains(host);
+				repeated = false;
+			}
+		}
 
-		if (result == true)
-			Logger.getLogger().logLine("FILTERED:" + host);
-		else
-			Logger.getLogger().logLine("ALLOWED:" + host);
+		if (repeated == false) {
+			if (result == true) {
+				OldFiltered.add(host);
+				Logger.getLogger().logLine("FILTERED:" + host);
+			}
+			else {
+				OldAllowed.add(host);
+				Logger.getLogger().logLine("ALLOWED:" + host);
+			}
+		}
 
 		if (result == false)
 			okCnt++;
