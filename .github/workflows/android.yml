@@ -18,12 +18,12 @@ jobs:
         java-version: 1.8
     - name: Build with Gradle
       run: ./gradlew clean assembleDebug
-    - uses: stefanzweifel/git-auto-commit-action@v4
+    - name: Create release and upload apk
+      uses: underwindfall/create-release-with-debugapk@v2.0.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        commit_message: Release new apk
-        branch: own
-        commit_options: '--no-verify --signoff'
-        repository: .
-        commit_user_name: j-moriarti
-        commit_user_email: j-moriarti@users.noreply.github.com
-        push_options: '--force'
+        tag_name: v1.50.40.2
+        asset_path: app/build/outputs/apk/debug/app-debug.apk
+        asset_name: test-build.apk
+        asset_content_type: application/zip
