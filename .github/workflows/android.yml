@@ -2,9 +2,8 @@ name: Android CI
 
 on:
   push:
-    branches: [ own ]
-  pull_request:
-    branches: [ own ]
+    paths:
+      - 'trigger'
 
 jobs:
   build:
@@ -19,3 +18,12 @@ jobs:
         java-version: 1.8
     - name: Build with Gradle
       run: ./gradlew build
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Release new apk
+        branch: own
+        commit_options: '--no-verify --signoff'
+        repository: .
+        commit_user_name: j-moriarti
+        commit_user_email: j-moriarti@users.noreply.github.com
+        push_options: '--force'
