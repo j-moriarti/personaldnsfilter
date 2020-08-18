@@ -2,8 +2,13 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 28
-    buildToolsVersion "27.0.3"
+    //buildToolsVersion "27.0.3"
 
+    lintOptions {
+        abortOnError false
+        disable "HardwareIds"
+    }
+    
     defaultConfig {
         applicationId "dnsfilter.android"
         minSdkVersion 14
