@@ -1,12 +1,19 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
     repositories {
-	    google()
+        google()
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.1.2'
+        classpath 'com.android.tools.build:gradle:3.5.3'
+        //implementation 'org.fusesource.jansi:jansi:1.18'
+        //testCompile group 'org.fusesource.jansi:jansi:1.18'
     }
+}
+
+plugins {
+    id 'java'
+    id 'application'
 }
 
 allprojects {
@@ -14,4 +21,20 @@ allprojects {
         google()
         jcenter()
     }
+}
+
+mainClassName='dnsfilter.DNSFilterProxy'
+
+version 'DNSFilter-1.50.40.0-mr2'
+
+sourceCompatibility = 1.8
+dependencies {
+    implementation 'org.fusesource.jansi:jansi:1.18'
+    implementation 'org.brotli:dec:0.1.2'
+}
+
+repositories {
+    jcenter()
+    mavenLocal()
+    mavenCentral()
 }
