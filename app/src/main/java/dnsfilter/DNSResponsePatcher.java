@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Set;
+import java.util.HashSet;
 
 import util.Logger;
 import util.LoggerInterface;
@@ -43,6 +44,7 @@ public class DNSResponsePatcher {
 	private static long filterCnt=0;
 	private static boolean checkIP = false;
 	private static boolean checkCNAME = true;
+	private static boolean filter = false;
 
 
 	static {
@@ -77,7 +79,7 @@ public class DNSResponsePatcher {
 	}
 
 
-	public static byte[] patchResponse(String client, byte[] response, int offs) throws IOException {
+	public static byte[] patchResponse(String client, byte[] response, int offs, boolean localResponse) throws IOException {
 
 		try {
 			ByteBuffer buf = ByteBuffer.wrap(response, offs, response.length - offs);
@@ -90,7 +92,7 @@ public class DNSResponsePatcher {
 			buf.getShort(); // auths
 			buf.getShort(); // additional
 
-			boolean filter = false;
+			filter = false;
 
 			for (int i = 0; i < questCount; i++) {
 
@@ -110,6 +112,7 @@ public class DNSResponsePatcher {
 				buf.getShort(); // query class
 			}
 
+			if (!localResponse) {
 			for (int i = 0; i < answerCount; i++) {
 				String host = readDomainName(buf, offs);
 				int type = buf.getShort(); // type
@@ -167,6 +170,7 @@ public class DNSResponsePatcher {
 					TRAFFIC_LOG.logLine(client + ", A-" + type + ", " + host + ", " + answerStr + ", /Length:" + len);
 				}
 			}
+			}
 			return buf.array();
 		} catch (IOException eio) {
 			throw eio;
@@ -174,6 +178,12 @@ public class DNSResponsePatcher {
 			throw new IOException ("Invalid DNS Response Message Structure", e);
 		}
 	}
+
+
+	public static boolean filtered() {
+		return filter;
+	}
+
 
 	private static boolean filter(String host) {
 		boolean result;
