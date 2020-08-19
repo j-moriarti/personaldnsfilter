@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Set;
-//import java.util.HashSet;
+import java.util.HashSet;
 
 import util.Logger;
 import util.LoggerInterface;
@@ -45,8 +45,8 @@ public class DNSResponsePatcher {
 	private static boolean checkIP = false;
 	private static boolean checkCNAME = true;
 	private static boolean filter = false;
-	//private static final Set<String> OldAllowed = new HashSet<String>();
-    	//private static final Set<String> OldFiltered = new HashSet<String>();
+	private static final Set<String> OldAllowed = new HashSet<String>();
+    	private static final Set<String> OldFiltered = new HashSet<String>();
 
 
 	static {
@@ -187,7 +187,6 @@ public class DNSResponsePatcher {
 	}
 
 
-	/*
 	private static boolean filter(String host) {
 		boolean result;
 		boolean repeated = true;
@@ -226,8 +225,8 @@ public class DNSResponsePatcher {
 
 		return result;
 	}
-	*/
-	
+
+	/*
 	private static boolean filter(String host) {
 		boolean result;
 
@@ -248,6 +247,7 @@ public class DNSResponsePatcher {
 
 		return result;
 	}
+	*/
 
 
 	private static boolean filterIP(String ip) {
