@@ -211,17 +211,19 @@ public class DNSResponsePatcher {
 			if (result == true) {
 				OldFiltered.add(host);
 				Logger.getLogger().logLine("FILTERED:" + host);
+				filterCnt++;
 			}
 			else {
 				OldAllowed.add(host);
 				Logger.getLogger().logLine("ALLOWED:" + host);
+				okCnt++;
 			}
 		}
 
-		if (result == false)
-			okCnt++;
-		else
-			filterCnt++;
+		//if (result == false)
+		//	okCnt++;
+		//else
+		//	filterCnt++;
 
 		return result;
 	}
