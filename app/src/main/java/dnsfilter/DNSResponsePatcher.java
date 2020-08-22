@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Set;
+//import java.util.HashSet;
 
 import util.Logger;
 import util.LoggerInterface;
@@ -43,6 +44,9 @@ public class DNSResponsePatcher {
 	private static long filterCnt=0;
 	private static boolean checkIP = false;
 	private static boolean checkCNAME = true;
+	private static boolean filter = false;
+	//private static final Set<String> OldAllowed = new HashSet<String>();
+    	//private static final Set<String> OldFiltered = new HashSet<String>();
 
 
 	static {
@@ -77,7 +81,7 @@ public class DNSResponsePatcher {
 	}
 
 
-	public static byte[] patchResponse(String client, byte[] response, int offs) throws IOException {
+	public static byte[] patchResponse(String client, byte[] response, int offs, boolean localResponse) throws IOException {
 
 		try {
 			ByteBuffer buf = ByteBuffer.wrap(response, offs, response.length - offs);
@@ -90,7 +94,7 @@ public class DNSResponsePatcher {
 			buf.getShort(); // auths
 			buf.getShort(); // additional
 
-			boolean filter = false;
+			filter = false;
 
 			for (int i = 0; i < questCount; i++) {
 
@@ -110,6 +114,7 @@ public class DNSResponsePatcher {
 				buf.getShort(); // query class
 			}
 
+			if (!localResponse) {
 			for (int i = 0; i < answerCount; i++) {
 				String host = readDomainName(buf, offs);
 				int type = buf.getShort(); // type
@@ -167,6 +172,7 @@ public class DNSResponsePatcher {
 					TRAFFIC_LOG.logLine(client + ", A-" + type + ", " + host + ", " + answerStr + ", /Length:" + len);
 				}
 			}
+			}
 			return buf.array();
 		} catch (IOException eio) {
 			throw eio;
@@ -174,6 +180,56 @@ public class DNSResponsePatcher {
 			throw new IOException ("Invalid DNS Response Message Structure", e);
 		}
 	}
+
+
+	public static boolean filtered() {
+		return filter;
+	}
+
+
+	/*
+	private static boolean filter(String host) {
+		boolean result;
+		boolean repeated = true;
+
+		if (FILTER == null) {
+			result = false;
+			if (!OldAllowed.contains(host))
+				repeated = false;
+		}
+		else {
+			if (OldAllowed.contains(host)) {
+				result = false;
+			}else if (OldFiltered.contains(host)) {
+				result = true;
+			}else {
+				result = FILTER.contains(host);
+				repeated = false;
+			}
+		}
+
+		if (repeated == false) {
+			if (result == true) {
+				OldFiltered.add(host);
+				Logger.getLogger().logLine("FILTERED:" + host);
+				filterCnt++;
+			}
+			else {
+				OldAllowed.add(host);
+				Logger.getLogger().logLine("ALLOWED:" + host);
+				okCnt++;
+			}
+		}
+
+		//if (result == false)
+		//	okCnt++;
+		//else
+		//	filterCnt++;
+
+		return result;
+	}
+	*/
+
 
 	private static boolean filter(String host) {
 		boolean result;
