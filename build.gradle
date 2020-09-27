@@ -25,7 +25,7 @@ allprojects {
 
 mainClassName='dnsfilter.DNSFilterProxy'
 
-version 'DNSFilter-1.50.41.0-dev2'
+version 'DNSFilter-1.50.41.0-dev6'
 
 sourceCompatibility = 1.8
 dependencies {
