@@ -66,6 +66,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -79,6 +80,7 @@ import java.util.StringTokenizer;
 
 import dnsfilter.ConfigurationAccess;
 import dnsfilter.DNSFilterManager;
+import util.ExecutionEnvironment;
 import util.SuppressRepeatingsLogger;
 import util.GroupedLogger;
 import util.Logger;
@@ -108,6 +110,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 	protected static Button restoreDefaultsBtn;
 	protected static Button backupDnBtn;
 	protected static Button backupUpBtn;
+	protected static Button manualDNSViewResDefBtn;
 	protected static TextView addFilterBtn;
 	protected static TextView removeFilterBtn;
 	protected static CheckBox appWhiteListCheck;
@@ -117,6 +120,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 	protected static CheckBox keepAwakeCheck;
 	protected static CheckBox enableAdFilterCheck;
 	protected static CheckBox proxyModeCheck;
+	protected static CheckBox proxyLocalOnlyCheck;
 	protected static CheckBox enableAutoStartCheck;
 	protected static CheckBox rootModeCheck;
 	protected static CheckBox enableCloakProtectCheck;
@@ -131,9 +135,9 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 	protected static String SCROLL_PAUSE = "II  ";
 	protected static String SCROLL_CONTINUE = ">>  ";
 	protected static boolean scroll_locked = false;
-	protected static TextView donate_field;
-	protected static int donate_field_color = Color.TRANSPARENT;
-	protected static Spanned donate_field_txt = fromHtml("<strong>Want to support us? Feel free to <a href='https://www.paypal.me/iZenz'>DONATE</a></strong>!");
+	protected static TextView link_field;
+	protected static int link_field_color = Color.TRANSPARENT;
+	protected static String link_field_txt = "";
 	protected static MenuItem add_filter;
 	protected static MenuItem remove_filter;
 	protected static String[] availableBackups;
@@ -159,16 +163,26 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 
 	protected static String IN_FILTER_PREF = "X \u0009";
 	protected static String NO_FILTER_PREF = "✓\u0009";
+	protected static String IP_FORWARD_PREF = "-> ";
 
 	//log color and format
 	protected static String filterLogFormat;
 	protected static String acceptLogFormat;
+	protected static String fwdLogFormat;
 	protected static String normalLogFormat="($CONTENT)";
 
 	protected static ConfigurationAccess CONFIG = ConfigurationAccess.getLocal();
 	protected static boolean switchingConfig = false;
 
 	protected static boolean CHECKING_PASSCODE_DIAG = false;
+
+	protected static DNSProxyActivity INSTANCE;
+
+	public static void reloadLocalConfig() {
+		DNSProxyActivity instance = INSTANCE;
+		if (instance != null && CONFIG.isLocal())
+			instance.loadAndApplyConfig(false);
+	}
 
 	private static class MsgTimeoutListener implements TimeoutListener {
 
@@ -188,9 +202,9 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		@Override
 		public void timeoutNotification() {
 			if (CONFIG.isLocal())
-				activity.setMessage(donate_field_txt, donate_field_color);
+				activity.setMessage(fromHtml(link_field_txt), link_field_color);
 			else
-				activity.setMessage(fromHtml("<font color='#F7FB0A'><strong>"+ CONFIG +"</strong></font>"), donate_field_color);
+				activity.setMessage(fromHtml("<font color='#F7FB0A'><strong>"+ CONFIG +"</strong></font>"), link_field_color);
 		}
 
 		@Override
@@ -220,13 +234,16 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 
 			boolean filterHostLog = logLn.startsWith(IN_FILTER_PREF);
 			boolean okHostLog = logLn.startsWith(NO_FILTER_PREF);
+			boolean fwdHostLog = logLn.startsWith(IP_FORWARD_PREF);
 
-			if (filterHostLog || okHostLog) {
+			if (filterHostLog || okHostLog || fwdHostLog) {
 
 				if (filterHostLog)
 					logLn = filterLogFormat.replace("($CONTENT)",logLn)+"<br>";
-				else
+				else if (okHostLog)
 					logLn = acceptLogFormat.replace("($CONTENT)",logLn)+"<br>";
+				else
+					logLn =  fwdLogFormat.replace("($CONTENT)",logLn)+"<br>";
 
 				logOutView.append(fromHtml(logLn));
 			} else {
@@ -255,6 +272,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			if (!scroll_locked) {
 				m_logStr = m_logStr.replace("FILTERED:",IN_FILTER_PREF);
 				m_logStr = m_logStr.replace("ALLOWED:",NO_FILTER_PREF);
+				m_logStr = m_logStr.replace("MAPPED_CUSTOM_IP:",IP_FORWARD_PREF);
 
 				addToLogView(m_logStr);
 
@@ -304,6 +322,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			AndroidEnvironment.initEnvironment(this);
 
 			MsgTO.setActivity(this);
+			INSTANCE = this;
 
 			if (getIntent().getBooleanExtra("SHOULD_FINISH", false)) {
 				finish();
@@ -390,6 +409,8 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 
 			manualDNSView = (EditText) advDNSConfigDia.findViewById(R.id.manualDNS);
 			manualDNSView.setText(uiText);
+			manualDNSViewResDefBtn = (Button) advDNSConfigDia.findViewById(R.id.RestoreDefaultBtn);
+			manualDNSViewResDefBtn.setOnClickListener(this);
 
 			startBtn = (Button) findViewById(R.id.startBtn);
 			startBtn.setOnClickListener(this);
@@ -420,13 +441,13 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			addFilterBtn.setOnClickListener(this);
 			removeFilterBtn = (TextView) findViewById(R.id.removeFilterBtn);
 			removeFilterBtn.setOnClickListener(this);
-			donate_field = (TextView) findViewById(R.id.donate);
-			donate_field.setText(donate_field_txt);
-			donate_field.setOnClickListener(this);
+			link_field = (TextView) findViewById(R.id.link_field);
+			link_field.setText(fromHtml(link_field_txt));
+			link_field.setOnClickListener(this);
 
-			Drawable background = donate_field.getBackground();
+			Drawable background = link_field.getBackground();
 			if (background instanceof ColorDrawable)
-				donate_field_color = ((ColorDrawable) background).getColor();
+				link_field_color = ((ColorDrawable) background).getColor();
 
 			scrollLockField = (TextView) findViewById(R.id.scrolllock);
 			if (scroll_locked)
@@ -476,6 +497,11 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			proxyModeCheck = (CheckBox) findViewById(R.id.proxyModeCheck);
 			proxyModeCheck.setChecked(checked);
 			proxyModeCheck.setOnClickListener(this);
+
+			checked = proxyLocalOnlyCheck != null && proxyLocalOnlyCheck .isChecked();
+			proxyLocalOnlyCheck = (CheckBox) findViewById(R.id.proxyLocalOnlyCheck);
+			proxyLocalOnlyCheck.setChecked(checked);
+			proxyLocalOnlyCheck.setOnClickListener(this);
 
 			checked = rootModeCheck != null && rootModeCheck.isChecked();
 			rootModeCheck = (CheckBox) findViewById(R.id.rootModeCheck);
@@ -539,7 +565,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 				if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
 					storagePermission = false;
 					requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-					Logger.getLogger().logLine("Need Storage Permissions to start!");
+					Logger.getLogger().logLine("Need storage permissions to start!");
 				}
 			}
 
@@ -556,6 +582,10 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 	@Override
 	public void onResume() {
 		super.onResume();
+		if (advDNSConfigDia_open) {
+			advDNSConfigDia.show();
+			((HorizontalScrollView) advDNSConfigDia.findViewById(R.id.manualDNSScroll)).fullScroll(ScrollView.FOCUS_LEFT);
+		}
 		checkPasscode();
 	}
 
@@ -570,6 +600,11 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			}
 		}
 		try {
+			Properties config = CONFIG.getConfig();
+			if (config == null){
+				logLine("Error: Config is null!");
+				return;
+			}
 			final String code = CONFIG.getConfig().getProperty("passcode", "").trim();
 
 			if (code.equals(""))
@@ -607,7 +642,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			logException(eio);
 		}
 	}
-
+	
 	private void dump(Exception e) {
 		StringWriter str = new StringWriter();
 		e.printStackTrace(new PrintWriter(str));
@@ -709,10 +744,10 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		try {
 			CONFIG.doBackup(getBackupSubFolder());
 			backupStatusView.setTextColor(Color.parseColor("#23751C"));
-			backupStatusView.setText("Backup Success!");
+			backupStatusView.setText("Backup success!");
 		} catch (IOException eio) {
 			backupStatusView.setTextColor(Color.parseColor("#D03D06"));
-			backupStatusView.setText("Backup Failed! " + eio.getMessage());
+			backupStatusView.setText("Backup failed! " + eio.getMessage());
 		}
 	}
 
@@ -721,11 +756,12 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		try {
 			CONFIG.doRestoreDefaults();
 			backupStatusView.setTextColor(Color.parseColor("#23751C"));
-			loadAndApplyConfig(false);
-			backupStatusView.setText("Restore Success!");
+			if (!CONFIG.isLocal())
+				loadAndApplyConfig(false);
+			backupStatusView.setText("Restore success!");
 		} catch (IOException eio) {
 			backupStatusView.setTextColor(Color.parseColor("#D03D06"));
-			backupStatusView.setText("Restore Failed! " + eio.getMessage());
+			backupStatusView.setText("Restore failed! " + eio.getMessage());
 		}
 	}
 
@@ -734,11 +770,12 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		try {
 			CONFIG.doRestore(getBackupSubFolder());
 			backupStatusView.setTextColor(Color.parseColor("#23751C"));
-			loadAndApplyConfig(false);
-			backupStatusView.setText("Restore Success!");
+			if (!CONFIG.isLocal())
+				loadAndApplyConfig(false);
+			backupStatusView.setText("Restore success!");
 		} catch (IOException eio) {
 			backupStatusView.setTextColor(Color.parseColor("#D03D06"));
-			backupStatusView.setText("Restore Failed! " + eio.getMessage());
+			backupStatusView.setText("Restore failed! " + eio.getMessage());
 		}
 	}
 
@@ -820,11 +857,38 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 	@Override
 	public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-		if(grantResults[0]== PackageManager.PERMISSION_GRANTED){
+		if(grantResults.length >0 && grantResults[0]== PackageManager.PERMISSION_GRANTED){
 			initAppAndStartup();
 		}
 		else {
+			if (grantResults.length == 0)
+				logLine("grantResults is empty - Assuming permission denied!");
 			System.exit(-1);
+		}
+	}
+	
+	protected void setDNSCfgDialog(Properties config) {
+		String manualDNS_Help =
+				"# Format: <IP>::<PORT>::<PROTOCOL>::<URL END POINT>\n"+
+						"# IPV6 addresses with '::' must be in brackets '[IPV6]'!\n\n" +
+						"# The default list contains following entries:\n" +
+						"# adguard1 (UDP); adguard2 (UDP); uncensoreddns.org (Dot); libredns.gr (DoT); libredns.gr (DoH);  nixnet.services Luxembourg (DoT); nixnet.services Las Vegas(DoT); nixnet.services New York(DoT)\n\n";
+
+		manualDNSView.setText(manualDNS_Help+config.getProperty("fallbackDNS").replace(";", "\n").replace(" ", ""));
+		manualDNSCheck.setChecked(!Boolean.parseBoolean(config.getProperty("detectDNS", "true")));
+
+	}
+
+	protected void restoreDefaultDNSConfig() {
+		try {
+			InputStream defIn = ExecutionEnvironment.getEnvironment().getAsset("dnsfilter.conf");
+			Properties defaults = new Properties();
+			defaults.load(defIn);
+			defIn.close();
+			setDNSCfgDialog(defaults);
+			message("Restored DNS defaults!");
+		} catch (Exception e ){
+			message(e.getMessage());
 		}
 	}
 
@@ -833,41 +897,39 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		config = getConfig();
 
 		if (config != null) {
+
 			Runnable uiUpdater = new Runnable() {
 				@Override
 				public void run() {
 
-					//Log formatting
+					//Link field
+					link_field_txt = config.getProperty("footerLink","");
+					link_field.setText(fromHtml(link_field_txt));
 
+					//Log formatting
 					filterLogFormat = config.getProperty("filterLogFormat", "<font color='#D03D06'>($CONTENT)</font>");
 					acceptLogFormat = config.getProperty("acceptLogFormat", "<font color='#23751C'>($CONTENT)</font>");
+					fwdLogFormat = config.getProperty("fwdLogFormat", "<font color='#ff9900'>($CONTENT)</font>");
 					normalLogFormat = config.getProperty("normalLogFormat","($CONTENT)");
 
 					try {
 						int logSize = Integer.parseInt(config.getProperty("logTextSize", "14"));
 						logOutView.setTextSize(TypedValue.COMPLEX_UNIT_SP, logSize);
 					} catch (Exception e) {
-						Logger.getLogger().logLine("Error in log Text Size setting! "+e.toString());
+						Logger.getLogger().logLine("Error in log text size setting! "+e.toString());
 					}
 
 					debug = Boolean.parseBoolean(config.getProperty("debug", "false"));
 
-					manualDNSCheck.setChecked(!Boolean.parseBoolean(config.getProperty("detectDNS", "true")));
-
-					String manualDNS_Help =
-							"# Format: <IP>::<PORT>::<PROTOCOL>::<URL END POINT>\n"+
-									"# IPV6 Addresses with '::' must be in brackets '[IPV6]'!\n\n" +
-                                    "# The default list contains following entries:\n" +
-									"# adguard1 (UDP); adguard2 (UDP); uncensoreddns.org (Dot); libredns.gr (DoT); libredns.gr (DoH);  nixnet.services Luxembourg (DoT); nixnet.services Las Vegas(DoT); nixnet.services New York(DoT)\n\n";
-
-					manualDNSView.setText(manualDNS_Help+config.getProperty("fallbackDNS").replace(";", "\n").replace(" ", ""));
+					setDNSCfgDialog(config);
 
 					FilterConfig.FilterConfigEntry[] filterEntries = buildFilterEntries(config);
 					filterCfg.setEntries(filterEntries);
 
 					filterReloadIntervalView.setText(config.getProperty("reloadIntervalDays", "7"));
 
-					enableAdFilterCheck.setChecked(config.getProperty("filterHostsFile") != null);
+					enableAdFilterCheck.setChecked(Boolean.parseBoolean(config.getProperty("filterActive", "true")));
+
 					enableAutoStartCheck.setChecked(Boolean.parseBoolean(config.getProperty("AUTOSTART", "false")));
 
 					enableCloakProtectCheck.setChecked(Boolean.parseBoolean(config.getProperty("checkCNAME", "true")));
@@ -875,6 +937,8 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 					keepAwakeCheck.setChecked(Boolean.parseBoolean(config.getProperty("androidKeepAwake", "false")));
 
 					proxyModeCheck.setChecked(Boolean.parseBoolean(config.getProperty("dnsProxyOnAndroid", "false")));
+
+					proxyLocalOnlyCheck.setChecked(Boolean.parseBoolean(config.getProperty("dnsProxyOnlyLocalRequests", "true")));
 
 					rootModeCheck.setChecked(Boolean.parseBoolean(config.getProperty("rootModeOnAndroid", "false")));
 
@@ -969,13 +1033,13 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			advDNSConfigDia.dismiss();
 	}
 
-	@Override
+/*	@Override
 	protected void onRestoreInstanceState(Bundle outState) {
 		if (advDNSConfigDia_open) {
 			advDNSConfigDia.show();
 			((HorizontalScrollView) advDNSConfigDia.findViewById(R.id.manualDNSScroll)).fullScroll(ScrollView.FOCUS_LEFT);
 		}
-	}
+	}*/
 
 
 
@@ -1012,8 +1076,6 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		try {
 
 			boolean changed = persistAdditionalHosts();
-
-			boolean filterAds = enableAdFilterCheck.isChecked();
 
 			if (filterReloadIntervalView.getText().toString().equals(""))
 				filterReloadIntervalView.setText("7");
@@ -1063,14 +1125,14 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 				else if (ln.trim().startsWith("dnsProxyOnAndroid"))
 					ln = "dnsProxyOnAndroid = " + proxyModeCheck.isChecked();
 
+				else if (ln.trim().startsWith("dnsProxyOnlyLocalRequests"))
+					ln = "dnsProxyOnlyLocalRequests = " + proxyLocalOnlyCheck.isChecked();
+
 				else if (ln.trim().startsWith("rootModeOnAndroid"))
 					ln = "rootModeOnAndroid = " + rootModeCheck.isChecked();
 
-				else if (ln.trim().startsWith("#!!!filterHostsFile") && filterAds)
-					ln = ln.replace("#!!!filterHostsFile", "filterHostsFile");
-
-				else if (ln.trim().startsWith("filterHostsFile") && !filterAds)
-					ln = ln.replace("filterHostsFile", "#!!!filterHostsFile");
+				else if (ln.trim().startsWith("filterActive"))
+					ln = "filterActive = " + enableAdFilterCheck.isChecked();
 
 				out.write((ln + "\r\n").getBytes());
 
@@ -1108,7 +1170,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 
 		if (switchingConfig ) {
 			advancedConfigCheck.setChecked(false);
-			Logger.getLogger().logLine("Config Switch in progress - Wait!");
+			Logger.getLogger().logLine("Config switch in progress - Wait!");
 			return;
 		}
 
@@ -1124,12 +1186,11 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		} else if (destination == removeFilterBtn) {
 			onCopyFilterFromLogView(false);
 			return;
-		} else if (destination == donate_field) {
-			handleDonate();
+		} else if (destination == link_field) {
+			handleFooterClick();
 			return;
 		} else if (destination == helpBtn) {
-			Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.zenz-home.com/personaldnsfilter/help/help.php"));
-			startActivity(browserIntent);
+			openBrowser("https://www.zenz-home.com/personaldnsfilter/help/help.php");
 			return;
 		} else if (destination == dnsField) {
 			handleDNSConfigDialog();
@@ -1149,16 +1210,19 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		} else if (destination == backupDnBtn || destination == backupUpBtn) {
 			handleBackUpIdChange(destination == backupUpBtn);
 			return;
+		} else if (destination == manualDNSViewResDefBtn){
+			restoreDefaultDNSConfig();
+			return;
 		}
 
 		if (destination == rootModeCheck && rootModeCheck.isChecked() && !proxyModeCheck.isChecked()) {
 			proxyModeCheck.setChecked(true);
-			Logger.getLogger().logLine("Enabled also DNS Proxy Mode as required by Root Mode!");
+			Logger.getLogger().logLine("Enabled also DNS proxy mode as required by root mode!");
 		}
 
 		if (destination == proxyModeCheck && !proxyModeCheck.isChecked() && rootModeCheck.isChecked()) {
 			rootModeCheck.setChecked(false);
-			Logger.getLogger().logLine("Disabled also Root Mode as it requires DNS Proxy Mode!");
+			Logger.getLogger().logLine("Disabled also root mode as it requires DNS proxy mode!");
 		}
 
 		persistConfig();
@@ -1188,6 +1252,17 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 			}
 		}
 	}
+
+	private void openBrowser(String url) {
+		Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+		try {
+			startActivity(browserIntent);
+		} catch (Exception e) {
+			message("Error opening "+url);
+			logLine(e.toString());
+		}
+	}
+
 
 	private void handleBackUpIdChange(boolean up) {
 		if (up && selectedBackup==availableBackups.length-1)
@@ -1230,7 +1305,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 				final String keyphrase = ConfigurationAccess.getLocal().getConfig().getProperty("client_remote_ctrl_keyphrase", "");
 
 				if (host.equals("") || host.equals("0.0.0.0") || keyphrase.equals(""))
-					throw new IOException("Remote Control not configured!");
+					throw new IOException("Remote control not configured!");
 
 				final int port;
 				try {
@@ -1250,7 +1325,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 							onRemoteConnected(ConfigurationAccess.getRemote(myLogger.getNestedLogger(), host, port, keyphrase));
 							checkPasscode();
 						} catch (IOException e) {
-							Logger.getLogger().logLine("Remote Connect failed!" + e.toString());
+							Logger.getLogger().logLine("Remote connect failed!" + e.toString());
 							message("Remote Connect Failed!");
 							switchingConfig = false;
 						}
@@ -1276,11 +1351,22 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 	}
 
 
-	private void handleDonate() {
-		Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.paypal.me/IZenz"));
-		startActivity(browserIntent);
-	}
+	private void handleFooterClick() {
+		String linkTxt = link_field_txt;
+		String link = "";
+		int linkStart = linkTxt.indexOf("a href='");
+		if (linkStart!=-1){
+			linkTxt = linkTxt.substring(linkStart+8);
+			int linkEnd = linkTxt.indexOf("'>");
+			if (linkEnd != -1)
+				link = linkTxt.substring(0,linkEnd);
+		}
 
+		if (!link.equals("")) {
+			openBrowser(link);
+		}
+
+	}
 
 	private void handleDNSConfigDialog() {
 		advDNSConfigDia.show();
@@ -1329,6 +1415,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 
 			keepAwakeCheck.setVisibility(View.VISIBLE);
 			proxyModeCheck.setVisibility(View.VISIBLE);
+			proxyLocalOnlyCheck.setVisibility(View.VISIBLE);
 			rootModeCheck.setVisibility(View.VISIBLE);
 			enableCloakProtectCheck.setVisibility(View.VISIBLE);
 			editAdditionalHostsCheck.setVisibility(View.VISIBLE);
@@ -1351,6 +1438,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 				if (dest.isChecked()) {
 					keepAwakeCheck.setVisibility(View.GONE);
 					proxyModeCheck.setVisibility(View.GONE);
+					proxyLocalOnlyCheck.setVisibility(View.GONE);
 					rootModeCheck.setVisibility(View.GONE);
 					enableCloakProtectCheck.setVisibility(View.GONE);
 					if (dest != editAdditionalHostsCheck) {
@@ -1372,6 +1460,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 				} else {
 					keepAwakeCheck.setVisibility(View.VISIBLE);
 					proxyModeCheck.setVisibility(View.VISIBLE);
+					proxyLocalOnlyCheck.setVisibility(View.VISIBLE);
 					rootModeCheck.setVisibility(View.VISIBLE);
 					enableCloakProtectCheck.setVisibility(View.VISIBLE);
 					editAdditionalHostsCheck.setVisibility(View.VISIBLE);
@@ -1468,8 +1557,8 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 	protected void startup() {
 
 		if (DNSFilterService.SERVICE != null) {
-			Logger.getLogger().logLine("DNSFilterService is running!");
-			Logger.getLogger().logLine("Filter Statistic since last restart:");
+			Logger.getLogger().logLine("DNS filter service is running!");
+			Logger.getLogger().logLine("Filter statistic since last restart:");
 			showFilterRate(false);
 			//Logger.getLogger().message("Attached already running Service!");
 			return;
@@ -1507,7 +1596,7 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 		if (requestCode == 0 && resultCode == Activity.RESULT_OK) {
 			startSvc();
 		} else if (requestCode == 0 && resultCode != Activity.RESULT_OK) {
-			Logger.getLogger().logLine("VPN Dialog not accepted!\r\nPress Restart to display Dialog again!");
+			Logger.getLogger().logLine("VPN dialog not accepted!\r\nPress restart to display dialog again!");
 		}
 	}
 
@@ -1541,8 +1630,8 @@ public class DNSProxyActivity extends Activity implements OnClickListener, Logge
 
 			@Override
 			public void run() {
-				donate_field.setBackgroundColor(backgroundColor);
-				donate_field.setText(msg);
+				link_field.setBackgroundColor(backgroundColor);
+				link_field.setText(msg);
 			}
 		});
 	}

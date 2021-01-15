@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="dnsfilter.android"
-    android:versionCode="1504203"
-    android:versionName="1.50.42.0" >
-
-    <uses-sdk android:minSdkVersion="14" />
+    android:versionCode="1504600"
+    android:versionName="1.50.46.0" >
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
@@ -17,9 +15,10 @@
 
     <application
         android:usesCleartextTraffic="true"
-        android:icon="@drawable/icon"
+        android:icon="@mipmap/ic_launcher"
         android:label="personalDNSfilter"
-        android:theme="@style/Theme.phttpp.TitleBar" >
+        android:theme="@style/Theme.phttpp.TitleBar"
+        android:requestLegacyExternalStorage="true">
         <activity
             android:name="dnsfilter.android.DNSProxyActivity"
             android:label="personalDNSfilter" >

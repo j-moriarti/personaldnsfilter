@@ -40,11 +40,11 @@ public class ConnectionChangeReceiver extends BroadcastReceiver implements Runna
 
 	@Override
 	public synchronized void onReceive(Context context, Intent intent) {
-
-		DNSServer.invalidateOpenConnections();
+		// needs more testing
+		// DNSServer.invalidateOpenConnections();
 		try {
 			if (ExecutionEnvironment.getEnvironment().debug())
-				Logger.getLogger().logLine("Received Network Connection Event: " + intent.getAction());
+				Logger.getLogger().logLine("Received network connection event: " + intent.getAction());
 			DNSFilterService.possibleNetworkChange(false);
 
 			//some devices send only 1 network change event when the connection is closed but not when the network is back!

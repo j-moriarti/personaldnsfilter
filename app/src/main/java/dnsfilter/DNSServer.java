@@ -31,13 +31,13 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 
 import util.ExecutionEnvironment;
 import util.Logger;
 import util.conpool.Connection;
+import util.conpool.HttpProxy;
 import util.http.HttpHeader;
 
 public class DNSServer {
@@ -54,8 +54,37 @@ public class DNSServer {
 
     private static DNSServer INSTANCE = new DNSServer(null,0,0);
 
+    protected static Proxy proxy = Proxy.NO_PROXY;
+
     static {
         Connection.setPoolTimeoutSeconds(30);
+        //load proxy
+        try {
+            boolean useProxy =  Boolean.parseBoolean(ConfigurationAccess.getLocal().getConfig().getProperty("resolveOverHttpProxy", "false"));
+            if (useProxy) {
+                String proxyIP = ConfigurationAccess.getLocal().getConfig().getProperty("httpProxyIP","").trim();
+                String proxyPort = ConfigurationAccess.getLocal().getConfig().getProperty("httpProxyPort","").trim();
+                if (!proxyIP.equals("") && !proxyPort.equals("")) {
+                    InetAddress proxyAddr = InetAddress.getByName(proxyIP);
+                    String proxyHost = ConfigurationAccess.getLocal().getConfig().getProperty("httpProxyHost","").trim();
+
+                    if (!proxyHost.equals(""))
+                        proxyAddr = InetAddress.getByAddress(proxyHost, proxyAddr.getAddress());
+
+                    proxy = new HttpProxy(new InetSocketAddress(proxyAddr, Integer.parseInt(proxyPort)));
+
+                    String proxyAuthStr = ConfigurationAccess.getLocal().getConfig().getProperty("httpProxyBasicAuthStr","").trim();
+                    if (!proxyAuthStr.equals(""))
+                        ((HttpProxy)proxy).setProxyAuth(proxyAuthStr);
+
+                    Logger.getLogger().logLine("Using Proxy:" + proxy);
+
+                } else Logger.getLogger().logLine("WARNING! Ignoring incomplete proxy configuration!");
+            }
+        } catch (Exception e){
+            Logger.getLogger().logLine("Exception during proxy creation!");
+            Logger.getLogger().logException(e);
+        }
     }
     
     public static void invalidateOpenConnections() {
@@ -73,7 +102,7 @@ public class DNSServer {
             return DOT;
         else if (s.equals("DOH"))
             return DOH;
-        else throw new IOException("Invalid Protocol: "+s);
+        else throw new IOException("Invalid protocol: "+s);
     }
 
 
@@ -127,7 +156,7 @@ public class DNSServer {
             try {
                 port = Integer.parseInt(entryTokens[1]);
             } catch (NumberFormatException nfe) {
-                throw new IOException("Invalid Port!", nfe);
+                throw new IOException("Invalid port!", nfe);
             }
         }
         int proto = DNSServer.UDP;
@@ -186,7 +215,7 @@ public class DNSServer {
                 if (size + response.getOffset() < maxBufSize && bufSize < size+response.getOffset()) { //resize for future requests
                     bufSize = Math.min(1024*(((size +response.getOffset()) / 1024) +1), maxBufSize);
                     Logger.getLogger().logLine("BUFFER RESIZE:"+bufSize);
-                } else if (size + response.getOffset() >= maxBufSize ) throw new IOException("Max Response Buffer to small for response of length " + size);
+                } else if (size + response.getOffset() >= maxBufSize ) throw new IOException("Max response buffer to small for response of length " + size);
 
                 response.setData(new byte[bufSize],response.getOffset(),bufSize-response.getOffset());
             }
@@ -308,11 +337,11 @@ class UDP extends DNSServer {
                 } catch (IOException eio) {
                     synchronized (sessions) {
                         if (!sessions.contains(socket))
-                            throw new IOException("Sessions are closed due to network chnage!");
+                            throw new IOException("Sessions are closed due to network change!");
                     }
                     retry++;
                     if (retry == UDP_RETRY_CNT )
-                        throw new IOException("No DNS Response from " + address);
+                        throw new IOException("No DNS response from " + address);
                 }
             }
         } finally {
@@ -348,7 +377,7 @@ class TCP extends DNSServer {
     @Override
     public void resolve(DatagramPacket request, DatagramPacket response) throws IOException {
         for (int i = 0; i<2; i++) { //retry once in case of EOFException (pooled connection was already closed)
-            Connection con = Connection.connect(address, timeout, ssl, null, Proxy.NO_PROXY);
+            Connection con = Connection.connect(address, timeout, ssl, null, proxy);
             con.setSoTimeout(timeout);
             try {
                 DataInputStream in = new DataInputStream(con.getInputStream());
@@ -418,7 +447,7 @@ class DoH extends DNSServer {
         byte[] reqHeader = buildRequestHeader(request.getLength());
 
         for (int i = 0; i<2; i++) { //retry once in case of EOFException (pooled connection was already closed)
-            Connection con = Connection.connect(urlHostAddress, timeout, true, null, Proxy.NO_PROXY);
+            Connection con = Connection.connect(urlHostAddress, timeout, true, null, proxy);
             try {
                 OutputStream out = con.getOutputStream();
                 DataInputStream in = new DataInputStream(con.getInputStream());
