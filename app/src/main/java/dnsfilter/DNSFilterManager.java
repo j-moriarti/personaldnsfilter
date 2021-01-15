@@ -608,9 +608,9 @@ public class DNSFilterManager extends ConfigurationAccess  {
 									in = new BufferedInputStream(con.getInputStream(), 2048);
 								else throw new IOException("ContentEncoding not supported:"+contentencoding);
 							} else
-								in = new BufferedInputStream(new FileInputStream(urlStr.substring(7)),2048);
+								in = new BufferedInputStream(new FileInputStream(urlStr.substring(7)),32768);
 
-							byte[] buf = new byte[2048];
+							byte[] buf = new byte[32768];
 							int[] r;
 
 							int received = 0;
