@@ -122,7 +122,7 @@ public class DNSFilterService extends VpnService  {
 			String ip = null;
 
 			if (rootMode && dnsProxyOnlyLocal)
-				return "127.0.0.1";
+				return "0.0.0.0";
 
 			NetworkInterface nif = null;
 
