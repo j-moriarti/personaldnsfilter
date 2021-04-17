@@ -51,17 +51,20 @@ import java.util.StringTokenizer;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
+import javax.net.ssl.HttpsURLConnection;
+
 import dnsfilter.remote.RemoteAccessServer;
 import util.ExecutionEnvironment;
 import util.FileLogger;
 import util.Logger;
 import util.LoggerInterface;
 import util.Utils;
+import util.conpool.TLSSocketFactory;
 
 
 public class DNSFilterManager extends ConfigurationAccess  {
 
-	public static final String VERSION = "15047-dev0";
+	public static final String VERSION = "1504700";
 
 	private static DNSFilterManager INSTANCE = new DNSFilterManager();
 
@@ -577,6 +580,10 @@ public class DNSFilterManager extends ConfigurationAccess  {
 				OutputStream out = new FileOutputStream(WORKDIR + filterhostfile + ".tmp");
 				out.write((DOWNLOADED_FF_PREFIX + new Date() + "from URLs: " + filterReloadURL + "\n").getBytes());
 
+				// Force TLS for Android version below Build.VERSION_CODES.LOLLIPOP (21)
+				boolean useTLSSocketFactory = ExecutionEnvironment.getEnvironment().getEnvironmentID() == 1
+						&& Integer.parseInt(ExecutionEnvironment.getEnvironment().getEnvironmentVersion())<21;
+
 				StringTokenizer urlTokens = new StringTokenizer(filterReloadURL, ";");
 
 				int urlCnt = urlTokens.countTokens();
@@ -592,7 +599,15 @@ public class DNSFilterManager extends ConfigurationAccess  {
 							if (!urlStr.startsWith("file://")) {
 								URL url = new URL(urlStr);
 								URLConnection con = url.openConnection();
-								
+
+								if (useTLSSocketFactory) {
+									try {
+										((HttpsURLConnection) con).setSSLSocketFactory(new TLSSocketFactory());
+									} catch (Exception e) {
+										Logger.getLogger().message(e.getMessage());
+									}
+								}
+
 								con.setConnectTimeout(120000);
 								con.setReadTimeout(120000);
 								con.setRequestProperty("Accept-Encoding", "gzip, deflate, identity");
