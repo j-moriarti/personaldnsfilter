@@ -22,6 +22,8 @@ Contact:i.z@gmx.net
 
 package util;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
@@ -34,6 +36,9 @@ import java.io.OutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
@@ -317,9 +322,23 @@ public class Utils {
 		File dir = to.getParentFile();
 		if (dir != null)
 			dir.mkdirs();
-		InputStream in = new FileInputStream(from);
-		OutputStream out = new FileOutputStream(to);
+		InputStream in = new BufferedInputStream(new FileInputStream(from));
+		OutputStream out = new BufferedOutputStream(new FileOutputStream(to));
 		copyFully(in, out, true);
+	}
+
+	public static void moveFileTree(File sourceFile, File destFile) throws IOException {
+
+		if (sourceFile.isDirectory()) {
+			for (File file : sourceFile.listFiles()) {
+				moveFileTree(file, new File(file.getPath().replace(sourceFile.getPath(), destFile.getPath())));
+				sourceFile.delete();
+			}
+		} else {
+			copyFile(sourceFile, destFile);
+			sourceFile.delete();
+		}
+
 	}
 
 }

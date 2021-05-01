@@ -64,7 +64,7 @@ import util.conpool.TLSSocketFactory;
 
 public class DNSFilterManager extends ConfigurationAccess  {
 
-	public static final String VERSION = "1504700";
+	public static final String VERSION = "15048-dev01";
 
 	private static DNSFilterManager INSTANCE = new DNSFilterManager();
 
@@ -473,6 +473,7 @@ public class DNSFilterManager extends ConfigurationAccess  {
 			copyLocalFile("dnsfilter.conf", "backup/"+name+"/dnsfilter.conf");
 			copyLocalFile("additionalHosts.txt", "backup/"+name+"/additionalHosts.txt");
 			copyLocalFile("VERSION.TXT", "backup/"+name+"/VERSION.TXT");
+			Logger.getLogger().message(new File(WORKDIR  + "/backup/"+name).getPath());
 		} catch (IOException e) {
 			throw new ConfigurationAccessException(e.getMessage(), e);
 		}
