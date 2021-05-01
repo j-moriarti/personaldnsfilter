@@ -82,7 +82,7 @@ public class DNSFilterService extends VpnService  {
 
 	protected static Intent SERVICE=null;
 
-	private static String START_DNSCRYPTPROXY = "dnscrypt-proxy";
+	private static String START_DNSCRYPTPROXY = getFilesDir()+"/dnscrypt-proxy";
 	private static String KILL_DNSCRYPTPROXY = "killall dnscrypt-proxy";
 
 	public static DNSFilterManager DNSFILTER = null;
@@ -693,20 +693,20 @@ public class DNSFilterService extends VpnService  {
 
 				if (manageDNSCryptProxy && !dnsCryptProxyStartTriggered) {
 					try {
-						String dnscryptSDcardFilePath = ExecutionEnvironment.getEnvironment().getWorkDir()+"dnscrypt-proxy/dnscrypt-proxy";
+						String dnscryptSDcardPath = ExecutionEnvironment.getEnvironment().getWorkDir()+"dnscrypt-proxy/";
 						String dnscryptInternalFilePath = getFilesDir()+"/dnscrypt-proxy";
-						File sourcef = new File(dnscryptSDcardFilePath);
+						File sourcef = new File(dnscryptSDcardPath+"dnscrypt-proxy");
 						File destf = new File(dnscryptInternalFilePath);
 						if (sourcef.exists()) {
 							if (destf.exists() && !destf.delete())
 								throw(new IOException("Cannot delete "+dnscryptInternalFilePath));
 							Utils.copyFile(sourcef, destf);
-							Logger.getLogger().logLine("DNSCrypt path: "+dnscryptSDcardFilePath);
+							Logger.getLogger().logLine("DNSCrypt path: "+dnscryptSDcardPath);
 							runOSCommand(true, false, false, KILL_DNSCRYPTPROXY);
-							runOSCommand(false, false, true,START_DNSCRYPTPROXY+" "+DNSFILTER.getConfig().getProperty("dnsCryptProxyStartOptions",""));
+							runOSCommand(false, false, true,START_DNSCRYPTPROXY+" "+DNSFILTER.getConfig().getProperty("dnsCryptProxyStartOptions","-config "+dnscryptSDcardPath+"dnscrypt-proxy.toml"));
 							dnsCryptProxyStartTriggered = true;
 						} else
-							throw(new IOException("dnscrypt file not found! Copy the binary file to "+dnscryptInternalFilePath));
+							throw(new IOException("dnscrypt file not found! Copy the binary file to "+dnscryptSDcardPath));
 					} catch (Exception e) {
 						Logger.getLogger().logException(e);
 					}
