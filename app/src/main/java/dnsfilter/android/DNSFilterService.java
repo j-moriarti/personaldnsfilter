@@ -161,10 +161,10 @@ public class DNSFilterService extends VpnService  {
 					}
 
 					Logger.getLogger().logLine("Cleaning up a previous redirect from previous not correctly terminated execution!");
-					runOSCommand(true, "iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination "+ip+":5300");
-					runOSCommand(true, "ip6tables -D OUTPUT -p tcp --destination-port 53 -j DROP");
-					runOSCommand(true, "ip6tables -D OUTPUT -p udp --destination-port 53 -j DROP");
-					runOSCommand(true, "iptables -D OUTPUT -p tcp --destination-port 53 -j DROP");
+					runOSCommand(true, true, "iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination "+ip+":5300");
+					runOSCommand(true, true, "ip6tables -D OUTPUT -p tcp --destination-port 53 -j DROP");
+					runOSCommand(true, true, "ip6tables -D OUTPUT -p udp --destination-port 53 -j DROP");
+					runOSCommand(true, true, "iptables -D OUTPUT -p tcp --destination-port 53 -j DROP");
 
 				}
 			} catch (Exception e) {
@@ -182,11 +182,11 @@ public class DNSFilterService extends VpnService  {
 				String ip = getALocalIpAddress();
 				if (ip !=null &&!ip.equals(forwardip)){
 					clearForward();
-					runOSCommand(false, "iptables -t nat -I OUTPUT -p udp --dport 53 -j DNAT --to-destination " + ip + ":5300");
+					runOSCommand(false, true, "iptables -t nat -I OUTPUT -p udp --dport 53 -j DNAT --to-destination " + ip + ":5300");
 					//nat in general not available for IP6 => drop IP6 DNS requests!
-					runOSCommand(true, "ip6tables -A OUTPUT -p udp --destination-port 53 -j DROP");
-					runOSCommand(true, "ip6tables -A OUTPUT -p tcp --destination-port 53 -j DROP");
-					runOSCommand(true, "iptables -A OUTPUT -p tcp --destination-port 53 -j DROP");
+					runOSCommand(true, true, "ip6tables -A OUTPUT -p udp --destination-port 53 -j DROP");
+					runOSCommand(true, true, "ip6tables -A OUTPUT -p tcp --destination-port 53 -j DROP");
+					runOSCommand(true, true, "iptables -A OUTPUT -p tcp --destination-port 53 -j DROP");
 					forwardip = ip;
 					FileOutputStream ipFile = new FileOutputStream(ipFilePath);
 					ipFile.write(ip.getBytes());
@@ -206,10 +206,10 @@ public class DNSFilterService extends VpnService  {
 				return;
 
 			try {
-				runOSCommand(false, "iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination "+forwardip+":5300");
-				runOSCommand(true, "ip6tables -D OUTPUT -p tcp --destination-port 53 -j DROP");
-				runOSCommand(true, "ip6tables -D OUTPUT -p udp --destination-port 53 -j DROP");
-				runOSCommand(true, "iptables -D OUTPUT -p tcp --destination-port 53 -j DROP");
+				runOSCommand(false, true, "iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination "+forwardip+":5300");
+				runOSCommand(true, true, "ip6tables -D OUTPUT -p tcp --destination-port 53 -j DROP");
+				runOSCommand(true, true, "ip6tables -D OUTPUT -p udp --destination-port 53 -j DROP");
+				runOSCommand(true, true, "iptables -D OUTPUT -p tcp --destination-port 53 -j DROP");
 				forwardip = null;
 				if (!new File(ipFilePath).delete()){
 					throw (new IOException("Cannot delete "+ipFilePath));
@@ -693,9 +693,20 @@ public class DNSFilterService extends VpnService  {
 
 				if (manageDNSCryptProxy && !dnsCryptProxyStartTriggered) {
 					try {
-						runOSCommand(true,false, KILL_DNSCRYPTPROXY);
-						runOSCommand(false, true,START_DNSCRYPTPROXY+" "+DNSFILTER.getConfig().getProperty("dnsCryptProxyStartOptions",""));
-						dnsCryptProxyStartTriggered = true;
+						String dnscryptSDcardFilePath = ExecutionEnvironment.getEnvironment().getWorkDir()+"dnscrypt-proxy/dnscrypt-proxy";
+						String dnscryptInternalFilePath = getFilesDir()+"/dnscrypt-proxy";
+						File sourcef = new File(dnscryptSDcardFilePath);
+						File destf = new File(dnscryptInternalFilePath);
+						if (sourcef.exists()) {
+							if (destf.exists() && !destf.delete())
+								throw(new IOException("Cannot delete "+dnscryptInternalFilePath));
+							Utils.copyFile(sourcef, destf);
+							Logger.getLogger().logLine("DNSCrypt path: "+dnscryptSDcardFilePath);
+							runOSCommand(true, false, false, KILL_DNSCRYPTPROXY);
+							runOSCommand(false, false, true,START_DNSCRYPTPROXY+" "+DNSFILTER.getConfig().getProperty("dnsCryptProxyStartOptions",""));
+							dnsCryptProxyStartTriggered = true;
+						} else
+							throw(new IOException("dnscrypt file not found! Copy the binary file to "+dnscryptInternalFilePath));
 					} catch (Exception e) {
 						Logger.getLogger().logException(e);
 					}
@@ -811,7 +822,7 @@ public class DNSFilterService extends VpnService  {
 		if (DNS_PROXY_PORT_IS_REDIRECTED)
 			return;
 		try {
-			runOSCommand(false, "iptables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-port 5300");
+			runOSCommand(false, true, "iptables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-port 5300");
 			DNS_PROXY_PORT_IS_REDIRECTED = true;
 		} catch (Exception e) {
 			Logger.getLogger().logLine("Exception during setting port redirection:" + e.toString());
@@ -823,7 +834,7 @@ public class DNSFilterService extends VpnService  {
 		if (!DNS_PROXY_PORT_IS_REDIRECTED)
 			return;
 		try {
-			runOSCommand(false, "iptables -t nat -D PREROUTING -p udp --dport 53 -j REDIRECT --to-port 5300");
+			runOSCommand(false, true, "iptables -t nat -D PREROUTING -p udp --dport 53 -j REDIRECT --to-port 5300");
 			DNS_PROXY_PORT_IS_REDIRECTED = false;
 		} catch (Exception e) {
 			Logger.getLogger().logLine("Exception when clearing port redirection:" + e.toString());
@@ -832,11 +843,17 @@ public class DNSFilterService extends VpnService  {
 	}
 
 
-	private static void runOSCommand(boolean ignoreError, String command) throws Exception {
+	private static void runOSCommand(boolean ignoreError, boolean superUser, String command) throws Exception {
 
 		Logger.getLogger().logLine("Exec '"+command+"' !");
 
-		Process su = Runtime.getRuntime().exec("su");
+		Process su;
+		
+		if (superUser)
+			su = Runtime.getRuntime().exec("su");
+		else
+			su = Runtime.getRuntime().exec("sh");
+		
 		DataOutputStream outputStream = new DataOutputStream(su.getOutputStream());
 		outputStream.writeBytes(command+"\n");
 		outputStream.flush();
@@ -865,7 +882,7 @@ public class DNSFilterService extends VpnService  {
 			throw new Exception ("Error in process execution: "+exitVal);
 	}
 
-	private static void runOSCommand(final boolean ignoreError, boolean async, final String command) throws Exception {
+	private static void runOSCommand(final boolean ignoreError,final boolean superUser, boolean async, final String command) throws Exception {
 
 		if (!async)
 			runOSCommand(ignoreError, command);
@@ -875,7 +892,7 @@ public class DNSFilterService extends VpnService  {
 				@Override
 				public void run() {
 					try {
-						runOSCommand(ignoreError, command);
+						runOSCommand(ignoreError, superUser, command);
 					} catch (Exception e) {
 						e.printStackTrace();
 						Logger.getLogger().logException(e);
@@ -960,7 +977,7 @@ public class DNSFilterService extends VpnService  {
 		else {
 			if (instance.manageDNSCryptProxy && appExit)
 				try {
-					instance.runOSCommand(false, KILL_DNSCRYPTPROXY);
+					instance.runOSCommand(false, false, KILL_DNSCRYPTPROXY);
 					instance.dnsCryptProxyStartTriggered = false;
 				} catch (Exception e) {
 					Logger.getLogger().logException(e);
